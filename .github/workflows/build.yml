@@ -3,8 +3,6 @@ name: Build Bridge App
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -20,33 +18,51 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android SDK manually
+    - name: Setup Android SDK
       run: |
-        sudo apt-get update
-        sudo apt-get install -y wget unzip
+        export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_SDK_ROOT=$ANDROID_HOME
         mkdir -p $ANDROID_HOME/cmdline-tools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdline-tools.zip
         unzip -q /tmp/cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
         mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null 2>&1
+        echo "sdk.dir=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
         echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
         echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+        echo "SDK setup complete"
+
+    - name: Create local.properties
+      run: |
+        echo "sdk.dir=$HOME/android-sdk" > local.properties
+        cat local.properties
 
     - name: Install Gradle 8.2
       run: |
         wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip
         unzip -q /tmp/gradle.zip -d /opt
-        ln -s /opt/gradle-8.2/bin/gradle /usr/local/bin/gradle
+        ln -sf /opt/gradle-8.2/bin/gradle /usr/local/bin/gradle
         gradle --version
 
     - name: Build APK
-      run: gradle assembleDebug --no-daemon --stacktrace
+      run: |
+        export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_SDK_ROOT=$ANDROID_HOME
+        gradle assembleDebug --no-daemon --stacktrace 2>&1 | tail -100
 
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: bridge-app-apk
         path: app/build/outputs/apk/debug/app-debug.apk
+
+    - name: Upload build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
