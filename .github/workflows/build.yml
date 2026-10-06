@@ -47,15 +47,33 @@ jobs:
         ln -sf /opt/gradle-8.1/bin/gradle /usr/local/bin/gradle
         gradle --version
 
-    - name: Build APK
+    - name: Debug project structure
+      run: |
+        echo "=== Project structure ==="
+        find . -type f -name "*.kt" -o -name "*.kts" -o -name "*.xml" -o -name "*.properties" | head -30
+        echo "=== build.gradle.kts ==="
+        cat build.gradle.kts
+        echo "=== app/build.gradle.kts ==="
+        cat app/build.gradle.kts
+        echo "=== settings.gradle.kts ==="
+        cat settings.gradle.kts
+
+    - name: Build APK with verbose output
       run: |
         export ANDROID_HOME=$HOME/android-sdk
         export ANDROID_SDK_ROOT=$ANDROID_HOME
-        gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build_output.log
-        echo "=== Build exit code: $? ==="
+        set -x
+        gradle assembleDebug --no-daemon --info 2>&1 | tee build_output.log
+        EXIT_CODE=${PIPESTATUS[0]}
+        echo "=== Gradle exit code: $EXIT_CODE ==="
         echo "=== Looking for APK files ==="
         find . -name "*.apk" -type f 2>/dev/null
         echo "=== APK search complete ==="
+        ls -la app/build/outputs/apk/debug/ 2>/dev/null || echo "Debug APK directory not found"
+        ls -la app/build/outputs/apk/ 2>/dev/null || echo "APK directory not found"
+        ls -la app/build/outputs/ 2>/dev/null || echo "Outputs directory not found"
+        ls -la app/build/ 2>/dev/null || echo "Build directory not found"
+        exit $EXIT_CODE
 
     - name: Upload APK
       if: success()
