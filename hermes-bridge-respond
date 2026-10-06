@@ -1,0 +1,19 @@
+#!/bin/bash
+# Respond to a Bridge App message
+# Usage: hermes-bridge-respond "your response"
+
+RESPONSE_FILE="/sdcard/bridge/ai_response.json"
+STATUS_FILE="/sdcard/bridge/ai_status.json"
+
+if [ -z "$1" ]; then
+    echo "Usage: hermes-bridge-respond 'your response'"
+    exit 1
+fi
+
+# Write response
+echo "{\"response\": \"$1\", \"timestamp\": \"$(date -Iseconds)\"}" > "$RESPONSE_FILE"
+
+# Update status
+echo "{\"status\": \"responded\", \"timestamp\": \"$(date -Iseconds)\"}" > "$STATUS_FILE"
+
+echo "Response sent to Bridge App."

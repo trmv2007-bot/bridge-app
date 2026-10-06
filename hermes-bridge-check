@@ -1,0 +1,20 @@
+#!/bin/bash
+# Check for new messages from Bridge App
+# Run this to check if the Bridge App has sent you a message
+
+REQUEST_FILE="/sdcard/bridge/ai_request.json"
+RESPONSE_FILE="/sdcard/bridge/ai_response.json"
+STATUS_FILE="/sdcard/bridge/ai_status.json"
+
+if [ ! -f "$REQUEST_FILE" ]; then
+    echo "No new messages from Bridge App."
+    exit 0
+fi
+
+echo "=== New message from Bridge App ==="
+cat "$REQUEST_FILE"
+echo ""
+echo "==================================="
+echo ""
+echo "To respond, run: hermes-bridge-respond 'your response'"
+echo "Or just tell Hermes to check bridge messages."

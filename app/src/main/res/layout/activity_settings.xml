@@ -26,11 +26,24 @@
         android:hint="sk-..."
         android:inputType="textPassword" />
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Bridge Server URL:"
+        android:padding="8dp" />
+
+    <EditText
+        android:id="@+id/serverUrlInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="http://localhost:8080"
+        android:inputType="text" />
+
     <Button
         android:id="@+id/saveButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Save API Key" />
+        android:text="Save Settings" />
 
     <TextView
         android:layout_width="match_parent"

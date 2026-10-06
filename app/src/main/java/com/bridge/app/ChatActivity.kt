@@ -32,6 +32,8 @@ class ChatActivity : Activity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var prefs: SharedPreferences
+    private var pollThread: Thread? = null
+    private var isPolling = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,6 +63,43 @@ class ChatActivity : Activity() {
         }
 
         updateStatus("Ready")
+
+        // Start polling for responses
+        startPolling()
+    }
+
+    private fun startPolling() {
+        isPolling = true
+        pollThread = Thread {
+            while (isPolling) {
+                try {
+                    checkForResponse()
+                    Thread.sleep(2000)
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+        }
+        pollThread?.start()
+    }
+
+    private fun checkForResponse() {
+        val responseFile = File("/sdcard/bridge/ai_response.json")
+        if (responseFile.exists()) {
+            try {
+                val json = org.json.JSONObject(responseFile.readText())
+                val response = json.getString("response")
+                responseFile.delete()
+
+                handler.post {
+                    addMessage(ChatMessage(response, false, System.currentTimeMillis()))
+                    updateStatus("Ready")
+                    saveMessages()
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
     }
 
     private fun sendMessage() {
@@ -70,39 +109,94 @@ class ChatActivity : Activity() {
         // Add user message
         addMessage(ChatMessage(text, true, System.currentTimeMillis()))
         messageInput.setText("")
-        updateStatus("Thinking...")
+        updateStatus("Sending...")
 
         executor.execute {
-            val response = processMessage(text)
-            handler.post {
-                addMessage(ChatMessage(response, false, System.currentTimeMillis()))
-                updateStatus("Ready")
-                saveMessages()
+            try {
+                val serverUrl = prefs.getString("server_url", "http://localhost:8080")
+                val url = java.net.URL("$serverUrl/chat")
+
+                val connection = url.openConnection() as javax.net.ssl.HttpsURLConnection
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.doOutput = true
+                connection.connectTimeout = 10000
+                connection.readTimeout = 120000
+
+                val body = "{\"message\": \"$text\"}"
+                connection.outputStream.use { it.write(body.toByteArray()) }
+
+                val response = connection.inputStream.bufferedReader().readText()
+                connection.disconnect()
+
+                handler.post {
+                    try {
+                        val json = org.json.JSONObject(response)
+                        val aiResponse = json.getString("response")
+                        addMessage(ChatMessage(aiResponse, false, System.currentTimeMillis()))
+                        updateStatus("Ready")
+                        saveMessages()
+                    } catch (e: Exception) {
+                        updateStatus("Error parsing response")
+                    }
+                }
+            } catch (e: Exception) {
+                handler.post {
+                    updateStatus("Error: ${e.message}")
+                    // Fallback to local response
+                    val response = getLocalResponse(text)
+                    addMessage(ChatMessage(response, false, System.currentTimeMillis()))
+                    updateStatus("Ready (local)")
+                }
             }
         }
     }
 
-    private fun processMessage(text: String): String {
+    private fun getLocalResponse(text: String): String {
         val lower = text.lowercase()
+        return when {
+            lower.contains("hello") || lower.contains("hi") || lower.contains("hey") ->
+                "Hello! I'm your Bridge companion. I can help you control your phone, set up automations, or just chat. What would you like to do?"
 
-        // Check for bridge commands
-        if (lower.startsWith("/")) {
-            return executeBridgeCommand(text.substring(1))
+            lower.contains("battery") -> {
+                val status = executeBridgeCommand("battery")
+                "Here's your battery status:\n$status"
+            }
+
+            lower.contains("time") -> {
+                val time = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+                "It's currently $time"
+            }
+
+            lower.contains("date") -> {
+                val date = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault()).format(Date())
+                "Today is $date"
+            }
+
+            lower.contains("help") ->
+                """I can help you with:
+                - Phone control: "tap 500 500", "swipe up", "open WhatsApp"
+                - Battery: "battery status"
+                - Time/Date: "what time is it"
+                - Automations: "automation list", "automation add"
+                - Chat: just talk to me!
+                - Commands: /tap /swipe /text /home /back /screen
+                """
+
+            lower.contains("screen") -> {
+                val screen = executeBridgeCommand("screen")
+                "Here's what's on your screen:\n$screen"
+            }
+
+            lower.contains("thank") ->
+                "You're welcome! I'm here to help anytime."
+
+            lower.contains("bye") || lower.contains("goodbye") ->
+                "Goodbye! I'll be here when you need me."
+
+            else ->
+                "I'm not sure how to help with that yet. Try saying 'help' to see what I can do, or use /commands for phone control."
         }
-
-        // Check for automation commands
-        if (lower.startsWith("automation") || lower.startsWith("automate")) {
-            return processAutomationCommand(text)
-        }
-
-        // Check for AI API
-        val apiKey = prefs.getString("ai_api_key", null)
-        if (apiKey != null && apiKey.isNotEmpty()) {
-            return callAIAPI(text, apiKey)
-        }
-
-        // Local response system
-        return getLocalResponse(text)
     }
 
     private fun executeBridgeCommand(command: String): String {
@@ -128,131 +222,6 @@ class ChatActivity : Activity() {
             return "ERROR: Timeout waiting for bridge response"
         } catch (e: Exception) {
             return "ERROR: ${e.message}"
-        }
-    }
-
-    private fun processAutomationCommand(text: String): String {
-        val lower = text.lowercase()
-        val automationFile = File("/sdcard/bridge/automations.json")
-
-        return when {
-            lower.contains("list") -> {
-                if (automationFile.exists()) {
-                    val automations = automationFile.readText()
-                    if (automations.isBlank()) "No automations set up yet."
-                    else "Current automations:\n$automations"
-                } else "No automations set up yet."
-            }
-            lower.contains("add") || lower.contains("create") -> {
-                "To add an automation, use the Automation screen or say: 'automation add [trigger] [action]'"
-            }
-            lower.contains("remove") || lower.contains("delete") -> {
-                "To remove an automation, use the Automation screen."
-            }
-            else -> "Automation commands: list, add, remove"
-        }
-    }
-
-    private fun callAIAPI(text: String, apiKey: String): String {
-        return try {
-            val url = "https://api.openai.com/v1/chat/completions"
-            val body = """
-                {
-                    "model": "gpt-3.5-turbo",
-                    "messages": [{"role": "user", "content": "$text"}],
-                    "max_tokens": 150
-                }
-            """.trimIndent()
-
-            val connection = java.net.URL(url).openConnection() as javax.net.ssl.HttpsURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Authorization", "Bearer $apiKey")
-            connection.doOutput = true
-            connection.connectTimeout = 10000
-            connection.readTimeout = 15000
-
-            connection.outputStream.use { it.write(body.toByteArray()) }
-
-            val response = connection.inputStream.bufferedReader().readText()
-            connection.disconnect()
-
-            // Parse response
-            val json = org.json.JSONObject(response)
-            val choices = json.getJSONArray("choices")
-            if (choices.length() > 0) {
-                val message = choices.getJSONObject(0).getJSONObject("message")
-                message.getString("content")
-            } else {
-                "ERROR: No response from AI"
-            }
-        } catch (e: Exception) {
-            "ERROR: AI API call failed: ${e.message}"
-        }
-    }
-
-    private fun getLocalResponse(text: String): String {
-        val lower = text.lowercase()
-        return when {
-            lower.contains("hello") || lower.contains("hi") || lower.contains("hey") ->
-                "Hello! I'm your Bridge companion. I can help you control your phone, set up automations, or just chat. What would you like to do?"
-
-            lower.contains("battery") -> {
-                val status = executeBridgeCommand("battery")
-                "Here's your battery status:\n$status"
-            }
-
-            lower.contains("time") -> {
-                val time = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
-                "It's currently $time"
-            }
-
-            lower.contains("date") -> {
-                val date = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault()).format(Date())
-                "Today is $date"
-            }
-
-            lower.contains("weather") ->
-                "I can check the weather for you. What city are you in?"
-
-            lower.contains("joke") -> {
-                val jokes = listOf(
-                    "Why do programmers prefer dark mode? Because light attracts bugs!",
-                    "Why did the phone need glasses? Because it lost all its contacts!",
-                    "What's a computer's favorite snack? Microchips!",
-                    "Why was the smartphone cold? It left its Windows open!"
-                )
-                jokes.random()
-            }
-
-            lower.contains("help") ->
-                """I can help you with:
-                - Phone control: "tap 500 500", "swipe up", "open WhatsApp"
-                - Battery: "battery status"
-                - Time/Date: "what time is it"
-                - Automations: "automation list", "automation add"
-                - Chat: just talk to me!
-                - Commands: /tap /swipe /text /home /back /screen
-                """
-
-            lower.contains("screen") -> {
-                val screen = executeBridgeCommand("screen")
-                "Here's what's on your screen:\n$screen"
-            }
-
-            lower.contains("open") -> {
-                val app = lower.replace("open", "").trim()
-                "To open $app, I can tap on it. Let me check the screen first."
-            }
-
-            lower.contains("thank") ->
-                "You're welcome! I'm here to help anytime."
-
-            lower.contains("bye") || lower.contains("goodbye") ->
-                "Goodbye! I'll be here when you need me."
-
-            else ->
-                "I'm not sure how to help with that yet. Try saying 'help' to see what I can do, or use /commands for phone control."
         }
     }
 
@@ -301,6 +270,12 @@ class ChatActivity : Activity() {
         } catch (e: Exception) {
             // Ignore load errors
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isPolling = false
+        pollThread?.interrupt()
     }
 }
 

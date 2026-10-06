@@ -1,0 +1,12 @@
+#!/bin/bash
+# Stop the Hermes Bridge Server
+
+echo "Stopping Hermes Bridge Server..."
+pkill -f hermes_bridge_server.py 2>/dev/null
+
+if pgrep -f hermes_bridge_server.py > /dev/null; then
+    echo "Server is still running. Force killing..."
+    pkill -9 -f hermes_bridge_server.py 2>/dev/null
+fi
+
+echo "Server stopped."

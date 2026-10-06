@@ -1,0 +1,40 @@
+#!/bin/bash
+# Hermes Bridge - Main control script
+# Usage: hermes-bridge [start|stop|check|respond|status]
+
+case "$1" in
+    start)
+        ~/bridge-app/hermes-bridge-start
+        ;;
+    stop)
+        ~/bridge-app/hermes-bridge-stop
+        ;;
+    check)
+        ~/bridge-app/hermes-bridge-check
+        ;;
+    respond)
+        shift
+        ~/bridge-app/hermes-bridge-respond "$*"
+        ;;
+    status)
+        if pgrep -f hermes_bridge_server.py > /dev/null; then
+            echo "Hermes Bridge Server: RUNNING"
+            echo "Port: 8080"
+            if [ -f /sdcard/bridge/ai_status.json ]; then
+                echo "Status: $(cat /sdcard/bridge/ai_status.json)"
+            fi
+        else
+            echo "Hermes Bridge Server: STOPPED"
+        fi
+        ;;
+    *)
+        echo "Usage: hermes-bridge [start|stop|check|respond|status]"
+        echo ""
+        echo "Commands:"
+        echo "  start   - Start the bridge server"
+        echo "  stop    - Stop the bridge server"
+        echo "  check   - Check for new messages from Bridge App"
+        echo "  respond - Respond to a Bridge App message"
+        echo "  status  - Show server status"
+        ;;
+esac
