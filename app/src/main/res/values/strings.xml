@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Bridge App</string>
+    <string name="accessibility_service_description">Bridge App Accessibility Service allows Termux to control your phone UI. It can tap, swipe, type text, read screen content, and more.</string>
+</resources>

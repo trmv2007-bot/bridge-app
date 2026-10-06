@@ -1,0 +1,64 @@
+#!/bin/bash
+# Bridge App - Termux helper script
+# This script sends commands to the Bridge App and reads results
+
+CMD_FILE="/sdcard/bridge/cmd.txt"
+RESULT_FILE="/sdcard/bridge/result.txt"
+
+# Ensure bridge directory exists
+mkdir -p /sdcard/bridge
+
+# Function to send command and wait for result
+bridge_cmd() {
+    local cmd="$1"
+    local timeout="${2:-10}"
+    
+    # Clear previous result
+    rm -f "$RESULT_FILE"
+    
+    # Write command
+    echo "$cmd" > "$CMD_FILE"
+    
+    # Wait for result
+    local count=0
+    while [ ! -f "$RESULT_FILE" ] && [ $count -lt $((timeout * 5)) ]; do
+        sleep 0.2
+        count=$((count + 1))
+    done
+    
+    if [ -f "$RESULT_FILE" ]; then
+        cat "$RESULT_FILE"
+        rm -f "$RESULT_FILE"
+    else
+        echo "ERROR: Timeout waiting for result"
+    fi
+}
+
+# Main
+if [ $# -eq 0 ]; then
+    echo "Usage: bridge <command>"
+    echo ""
+    echo "Commands:"
+    echo "  tap <x> <y>           - Tap at coordinates"
+    echo "  swipe <x1> <y1> <x2> <y2> [duration]  - Swipe"
+    echo "  text <text>           - Type text"
+    echo "  home                  - Press home"
+    echo "  back                  - Press back"
+    echo "  recent                - Press recents"
+    echo "  screenshot            - Take screenshot"
+    echo "  screen                - Read screen UI tree"
+    echo "  currentapp            - Get current app package"
+    echo "  find <text>           - Find text on screen"
+    echo "  taptext <text>        - Tap on text"
+    echo "  scroll <direction>    - Scroll up/down/left/right"
+    echo "  clipboard             - Get clipboard"
+    echo "  clipboard set <text>  - Set clipboard"
+    echo ""
+    echo "Examples:"
+    echo "  bridge tap 500 500"
+    echo "  bridge text hello"
+    echo "  bridge screen"
+    exit 1
+fi
+
+bridge_cmd "$*"
