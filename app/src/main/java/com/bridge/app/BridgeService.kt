@@ -208,9 +208,10 @@ class BridgeService : AccessibilityService() {
     }
 
     private fun unlock(): String {
-        val km = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
-        km.requestDismissKeyguard(this, null)
-        return "OK: Unlock attempted"
+        // Cannot dismiss keyguard from Service without Activity reference
+        // Use accessibility action instead
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        return "OK: Sent to home (unlock requires Activity context)"
     }
 
     private fun takeScreenshot(): String {
