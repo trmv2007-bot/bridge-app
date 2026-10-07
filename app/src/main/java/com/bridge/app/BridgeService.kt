@@ -194,17 +194,20 @@ class BridgeService : AccessibilityService() {
     }
 
     private fun pressVolumeUp(): String {
-        performGlobalAction(GLOBAL_ACTION_VOLUME_UP)
+        val audio = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_RAISE, 0)
         return "OK: Volume up"
     }
 
     private fun pressVolumeDown(): String {
-        performGlobalAction(GLOBAL_ACTION_VOLUME_DOWN)
+        val audio = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, 0)
         return "OK: Volume down"
     }
 
     private fun unlock(): String {
-        performGlobalAction(GLOBAL_ACTION_UNLOCK)
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        km.requestDismissKeyguard(this, null)
         return "OK: Unlock attempted"
     }
 
@@ -228,7 +231,8 @@ class BridgeService : AccessibilityService() {
         val desc = node.contentDescription?.toString() ?: ""
         val className = node.className?.toString() ?: ""
         val viewId = node.viewIdResourceName ?: ""
-        val bounds = node.boundsInScreen
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
 
         if (text.isNotEmpty() || desc.isNotEmpty() || viewId.isNotEmpty()) {
             result.append("$indent[$className] ")
@@ -260,7 +264,8 @@ class BridgeService : AccessibilityService() {
         }
         val result = StringBuilder()
         for (node in nodes) {
-            val bounds = node.boundsInScreen
+            val bounds = Rect()
+        node.getBoundsInScreen(bounds)
             result.append("Found: text=\"${node.text}\" bounds=${bounds.toShortString()}\n")
             node.recycle()
         }
@@ -276,7 +281,8 @@ class BridgeService : AccessibilityService() {
             return "ERROR: Text not found: $text"
         }
         val node = nodes[0]
-        val bounds = node.boundsInScreen
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
         val x = bounds.exactCenterX()
         val y = bounds.exactCenterY()
         node.recycle()
@@ -288,19 +294,27 @@ class BridgeService : AccessibilityService() {
         val root = rootInActiveWindow ?: return "ERROR: No active window"
         val result = when (direction.lowercase()) {
             "up" -> {
-                performGlobalAction(GLOBAL_ACTION_SCROLL_UP)
+                val rect = Rect()
+                root.getBoundsInScreen(rect)
+                swipe(rect.exactCenterX(), rect.bottom.toFloat() - 10, rect.exactCenterX(), rect.top.toFloat() + 10, 300)
                 "OK: Scrolled up"
             }
             "down" -> {
-                performGlobalAction(GLOBAL_ACTION_SCROLL_DOWN)
+                val rect = Rect()
+                root.getBoundsInScreen(rect)
+                swipe(rect.exactCenterX(), rect.top.toFloat() + 10, rect.exactCenterX(), rect.bottom.toFloat() - 10, 300)
                 "OK: Scrolled down"
             }
             "left" -> {
-                performGlobalAction(GLOBAL_ACTION_SCROLL_LEFT)
+                val rect = Rect()
+                root.getBoundsInScreen(rect)
+                swipe(rect.right.toFloat() - 10, rect.exactCenterY(), rect.left.toFloat() + 10, rect.exactCenterY(), 300)
                 "OK: Scrolled left"
             }
             "right" -> {
-                performGlobalAction(GLOBAL_ACTION_SCROLL_RIGHT)
+                val rect = Rect()
+                root.getBoundsInScreen(rect)
+                swipe(rect.left.toFloat() + 10, rect.exactCenterY(), rect.right.toFloat() - 10, rect.exactCenterY(), 300)
                 "OK: Scrolled right"
             }
             else -> "ERROR: Unknown direction: $direction"
