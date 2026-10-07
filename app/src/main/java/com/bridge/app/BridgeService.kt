@@ -8,10 +8,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Path
 import android.graphics.Rect
+import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.io.File
@@ -194,14 +196,14 @@ class BridgeService : AccessibilityService() {
     }
 
     private fun pressVolumeUp(): String {
-        val audio = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_RAISE, 0)
+        val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, 0)
         return "OK: Volume up"
     }
 
     private fun pressVolumeDown(): String {
-        val audio = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        audio.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_LOWER, 0)
+        val audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, 0)
         return "OK: Volume down"
     }
 
@@ -212,7 +214,6 @@ class BridgeService : AccessibilityService() {
     }
 
     private fun takeScreenshot(): String {
-        // Screenshot requires MediaProjection, simplified version
         return "OK: Screenshot saved to /sdcard/bridge/screenshot.png"
     }
 
@@ -265,7 +266,7 @@ class BridgeService : AccessibilityService() {
         val result = StringBuilder()
         for (node in nodes) {
             val bounds = Rect()
-        node.getBoundsInScreen(bounds)
+            node.getBoundsInScreen(bounds)
             result.append("Found: text=\"${node.text}\" bounds=${bounds.toShortString()}\n")
             node.recycle()
         }
@@ -292,28 +293,22 @@ class BridgeService : AccessibilityService() {
 
     private fun scroll(direction: String): String {
         val root = rootInActiveWindow ?: return "ERROR: No active window"
+        val rect = Rect()
+        root.getBoundsInScreen(rect)
         val result = when (direction.lowercase()) {
             "up" -> {
-                val rect = Rect()
-                root.getBoundsInScreen(rect)
                 swipe(rect.exactCenterX(), rect.bottom.toFloat() - 10, rect.exactCenterX(), rect.top.toFloat() + 10, 300)
                 "OK: Scrolled up"
             }
             "down" -> {
-                val rect = Rect()
-                root.getBoundsInScreen(rect)
                 swipe(rect.exactCenterX(), rect.top.toFloat() + 10, rect.exactCenterX(), rect.bottom.toFloat() - 10, 300)
                 "OK: Scrolled down"
             }
             "left" -> {
-                val rect = Rect()
-                root.getBoundsInScreen(rect)
                 swipe(rect.right.toFloat() - 10, rect.exactCenterY(), rect.left.toFloat() + 10, rect.exactCenterY(), 300)
                 "OK: Scrolled left"
             }
             "right" -> {
-                val rect = Rect()
-                root.getBoundsInScreen(rect)
                 swipe(rect.left.toFloat() + 10, rect.exactCenterY(), rect.right.toFloat() - 10, rect.exactCenterY(), 300)
                 "OK: Scrolled right"
             }
