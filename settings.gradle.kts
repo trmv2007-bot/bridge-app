@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "BridgeApp"
-include ':app'
+include(":app")
